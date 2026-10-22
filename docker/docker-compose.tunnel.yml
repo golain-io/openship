@@ -1,0 +1,11 @@
+# Overlay for docker-compose.traefik.yml: publish the dashboard on loopback for a
+# host-networked cloudflared connector (tunnel ingress → http://localhost:<port>).
+# Set OPENSHIP_TRAEFIK_ENABLE=false once the tunnel route serves the hostname.
+#
+#   docker compose -f docker/docker-compose.traefik.yml -f docker/docker-compose.tunnel.yml \
+#     --env-file .env up -d dashboard
+
+services:
+  dashboard:
+    ports:
+      - "127.0.0.1:${OPENSHIP_TUNNEL_PORT:-3101}:3001"
