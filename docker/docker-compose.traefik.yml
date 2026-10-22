@@ -105,7 +105,7 @@ services:
       api:
         condition: service_healthy
     labels:
-      traefik.enable: "true"
+      traefik.enable: ${OPENSHIP_TRAEFIK_ENABLE:-true}
       traefik.docker.network: ${TRAEFIK_NETWORK:?}
       traefik.http.routers.openship.entrypoints: websecure
       traefik.http.routers.openship.rule: Host(`${OPENSHIP_HOST:?}`)
