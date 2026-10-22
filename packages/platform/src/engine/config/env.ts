@@ -94,6 +94,21 @@ const envSchema = z.object({
   OPENSHIP_REQUIRE_AUTH: envBool("false"),
 
   /**
+   * Email + password login (sign-in, invite signup, password reset). false =
+   * social providers only: Better Auth's password routes are disabled and no
+   * credential account can be created, so a reset can't bring one back.
+   */
+  OPENSHIP_PASSWORD_LOGIN: envBool("true"),
+
+  /**
+   * Account creation once an instance has users. false = only existing accounts
+   * can sign in: invitations can't create accounts and social providers don't
+   * sign up unknown emails (a matching email still links). The CLI bootstrap
+   * paths are unaffected.
+   */
+  OPENSHIP_SIGNUP: envBool("true"),
+
+  /**
    * The instance's auth mode, DECLARED by whoever launches the API. When set it is
    * the ONLY source — `getAuthMode()` returns it without reading the DB, without a
    * fallback, and without inferring anything from DEPLOY_MODE.

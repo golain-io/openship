@@ -4,6 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { hashPassword } from "better-auth/crypto";
 import { repos } from "@repo/db";
 import { isSaasDeployment } from "@repo/platform/engine/lib/auth";
+import { env } from "@repo/platform/engine/config/env";
 import { resolveInvitationClaim } from "@repo/platform/engine/lib/invitation-claim";
 import { createInvitedUserWithCredential } from "@repo/platform/engine/lib/invitation-signup";
 
@@ -37,6 +38,9 @@ export async function inviteSignup(c: Context) {
   // a handler-level guard even though the route also belongs to a local-only
   // router, so a future remount cannot accidentally expose it on SaaS.
   if (isSaasDeployment) return c.notFound();
+  if (!env.OPENSHIP_SIGNUP || !env.OPENSHIP_PASSWORD_LOGIN) {
+    return c.json({ error: "Invited sign-up is disabled on this instance." }, 403);
+  }
 
   const body = (await c.req.json().catch((diagnosticFailure) => { observeCaughtError(diagnosticFailure, "api/modules/auth/invitation-signup.controller"); return ({}); })) as {
     invitationId?: unknown;

@@ -106,6 +106,7 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     version: APP_VERSION,
     authMode,
     authProviders: authMode === "local" ? configuredAuthProviders() : [],
+    passwordLogin: env.OPENSHIP_PASSWORD_LOGIN,
     productMode,
     teamMode,
     migrationTargetUrl,

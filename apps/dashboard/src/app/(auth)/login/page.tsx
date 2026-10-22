@@ -52,7 +52,7 @@ function LoginPageInner() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { t } = useI18n();
-  const { authMode, cloudAuthUrl, selfHosted, authProviders, remoteInstance } = useAuthContext();
+  const { authMode, cloudAuthUrl, selfHosted, authProviders, passwordLogin, remoteInstance } = useAuthContext();
 
   const isDesktop = typeof window !== "undefined" && !!window.desktop?.isDesktop;
   const handleBack = remoteInstance ? () => { window.location.href = "/settings?tab=instance"; }
@@ -290,6 +290,7 @@ function LoginPageInner() {
         </p>
       </div>
 
+      {passwordLogin && (
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="space-y-1.5">
           <Label htmlFor="login-email">{t.auth.login.emailLabel}</Label>
@@ -342,14 +343,17 @@ function LoginPageInner() {
           {loading ? t.auth.login.submitting : t.auth.login.submit}
         </Button>
       </form>
+      )}
 
       {passkeySupported && (
         <>
+          {passwordLogin && (
           <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
             <span className="h-px flex-1 bg-border" />
             <span>{t.auth.oauth.or}</span>
             <span className="h-px flex-1 bg-border" />
           </div>
+          )}
           <Button
             type="button"
             variant="secondary"
@@ -369,7 +373,7 @@ function LoginPageInner() {
           GITHUB_CLIENT_ID/SECRET. OAuthButtons renders nothing (not even the
           divider) when the list is empty, which is the default self-hosted
           instance, so this is safe to mount unconditionally. */}
-      <OAuthButtons providers={authProviders} callbackURL={postLoginUrl ?? "/"} showDivider={!passkeySupported} />
+      <OAuthButtons providers={authProviders} callbackURL={postLoginUrl ?? "/"} showDivider={passwordLogin && !passkeySupported} />
       {remoteInstance && (
         <p className="mt-5 text-sm text-muted-foreground">
           Using a passkey or social sign-in? Sign in on the remote site, then use

@@ -131,7 +131,7 @@ export const auth = betterAuth({
 
   /* ---------- Email + Password ---------- */
   emailAndPassword: {
-    enabled: true,
+    enabled: env.OPENSHIP_PASSWORD_LOGIN,
     minPasswordLength: 8,
     maxPasswordLength: 128,
 
@@ -187,6 +187,7 @@ export const auth = betterAuth({
       ? {
           github: {
             ...githubOAuth,
+            disableSignUp: !env.OPENSHIP_SIGNUP,
             scope: ["read:user", "user:email"],
             mapProfileToUser: (profile: any) => ({
               name: profile.name || profile.login,
@@ -196,7 +197,7 @@ export const auth = betterAuth({
           },
         }
       : {}),
-    ...(googleOAuth ? { google: googleOAuth } : {}),
+    ...(googleOAuth ? { google: { ...googleOAuth, disableSignUp: !env.OPENSHIP_SIGNUP } } : {}),
   },
 
   /* ---------- Account Linking ---------- */
@@ -255,6 +256,11 @@ export const auth = betterAuth({
             // Probe ANY user (not just autoProvisioned=false): a zero-auth box's
             // synthetic user must COUNT, so it doesn't fail open as "no admin".
             const [anyUser] = await db.select({ id: schema.user.id }).from(schema.user).limit(1);
+            if (anyUser && !env.OPENSHIP_SIGNUP) {
+              throw new APIError("FORBIDDEN", {
+                message: "Sign-up is disabled on this instance.",
+              });
+            }
             if (!anyUser && !isAuthorizedLocalSignup()) {
               throw new APIError("FORBIDDEN", {
                 message: "Initialize this instance through the local setup before signing in.",
@@ -306,6 +312,20 @@ export const auth = betterAuth({
           });
           const { cloudAnalytics } = await import("../modules/cloud-analytics");
           cloudAnalytics.capture({ userId: user.id, organizationId: `org_${user.id}` }, "cloud_signup_completed", {}, `signup:${user.id}`);
+        },
+      },
+    },
+    account: {
+      create: {
+        // With password login off, no Better Auth path (reset, OTP reset,
+        // set-password) may mint a credential account for a social-only user.
+        before: async (account) => {
+          if (!env.OPENSHIP_PASSWORD_LOGIN && account.providerId === "credential") {
+            throw new APIError("FORBIDDEN", {
+              message: "Password login is disabled on this instance.",
+            });
+          }
+          return { data: account };
         },
       },
     },
@@ -407,7 +427,13 @@ export const auth = betterAuth({
       // Exceeding it returns a rate-limit error; the UI asks them to wait.
       rateLimit: { window: 60, max: 5 },
       overrideDefaultEmailVerification: true,
+      disableSignUp: !env.OPENSHIP_SIGNUP,
       async sendVerificationOTP({ email, otp, type }) {
+        if (type === "forget-password" && !env.OPENSHIP_PASSWORD_LOGIN) {
+          throw new APIError("FORBIDDEN", {
+            message: "Password login is disabled on this instance.",
+          });
+        }
         // Two flows, both link-free by design. `sign-in` and `change-email` OTP
         // types are not enabled, so they fall through and send nothing.
         if (type === "email-verification") {

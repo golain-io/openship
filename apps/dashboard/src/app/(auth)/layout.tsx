@@ -119,6 +119,7 @@ export default async function AuthLayout({
       cloudAuthUrl={deploymentInfo.cloudAuthUrl}
       selfHosted={deploymentInfo.selfHosted}
       authProviders={remoteInstance ? [] : deploymentInfo.authProviders ?? []}
+      passwordLogin={remoteInstance ? true : deploymentInfo.passwordLogin ?? true}
       remoteInstance={remoteInstance}
     >
       <div className="th-page">{children}</div>

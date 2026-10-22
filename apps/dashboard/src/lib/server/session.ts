@@ -141,6 +141,9 @@ export type DeploymentInfo = {
    * old self-hosted behaviour.
    */
   authProviders?: AdvertisedAuthProvider[];
+  /** False when the API has password login off (OPENSHIP_PASSWORD_LOGIN=false).
+   *  Absent on an older server — treat that as password login available. */
+  passwordLogin?: boolean;
   cloudAuthUrl: string;
   cloudApiUrl: string;
   machineName?: string;
