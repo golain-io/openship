@@ -1,0 +1,123 @@
+# ──────────────────────────────────────────────────────────
+# Openship — Docker Compose (SELF-HOSTED behind an existing Traefik)
+#
+# For hosts where a Traefik instance already owns :80/:443. Same pull-based
+# images as docker-compose.yml, minus the OpenResty `edge`: Traefik routes
+# OPENSHIP_HOST to the dashboard, whose same-origin proxy forwards /api/mcp,
+# /api/auth and the OAuth well-known paths to the API. Nothing is published on
+# the host.
+#
+#   docker compose -f docker/docker-compose.traefik.yml --env-file .env up -d
+#
+# Required in .env: OPENSHIP_HOST, OPENSHIP_PUBLIC_URL, POSTGRES_PASSWORD,
+# REDIS_PASSWORD, BETTER_AUTH_SECRET, INTERNAL_TOKEN, TRAEFIK_NETWORK
+# (the external network Traefik's docker provider watches).
+#
+# Deployed apps run as host containers through the Docker socket but get no
+# public route from this stack (there is no managed edge here).
+# ──────────────────────────────────────────────────────────
+
+name: openship
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: ${POSTGRES_USER:-openship}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:-openship}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openship} -d ${POSTGRES_DB:-openship}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+    volumes:
+      - redis_data:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    image: ${OPENSHIP_IMAGE_REGISTRY:-ghcr.io/oblien}/openship-api:${OPENSHIP_VERSION:?}
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - ${OPENSHIP_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    env_file:
+      - ${OPENSHIP_ENV_FILE:-../.env}
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openship}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-openship}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
+      OPENSHIP_HOST_CONTROL: "false"
+      TRUST_PROXY: "true"
+    networks: [internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  dashboard:
+    image: ${OPENSHIP_IMAGE_REGISTRY:-ghcr.io/oblien}/openship-dashboard:${OPENSHIP_VERSION:?}
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ${OPENSHIP_ENV_FILE:-../.env}
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      INTERNAL_API_URL: http://api:4000
+    networks: [internal, edge]
+    depends_on:
+      api:
+        condition: service_healthy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:?}
+      traefik.http.routers.openship.entrypoints: websecure
+      traefik.http.routers.openship.rule: Host(`${OPENSHIP_HOST:?}`)
+      traefik.http.routers.openship.tls: "true"
+      traefik.http.routers.openship.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-le}
+      traefik.http.routers.openship.service: openship
+      traefik.http.services.openship.loadbalancer.server.port: "3001"
+
+networks:
+  internal: {}
+  edge:
+    external: true
+    name: ${TRAEFIK_NETWORK:?}
+
+volumes:
+  postgres_data:
+  redis_data:
