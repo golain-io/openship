@@ -97,6 +97,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
+      # Next standalone binds HOSTNAME; the container name only resolves on one network.
+      HOSTNAME: 0.0.0.0
       INTERNAL_API_URL: http://api:4000
     networks: [internal, edge]
     depends_on:
